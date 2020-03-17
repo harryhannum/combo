@@ -109,24 +109,27 @@ class Directory(object):
         return os.path.relpath(self.path, other.path)
 
     def get_hash(self, ignore_unwanted_files=True):
+        """
+        Calculates a hash of the entire content of a directory (recursively)
+        The content which is being hash is the relative path to each file, and its content
+        Optionaly, this hash function ignore unwanted files to hashing using the ".gitignore" format
+
+        :param ignore_unwanted_files: True in order to take ".gitignore" files into account and exclude
+                                      irrelevant files from hashing, False in order to hash the entire directory
+        :return: The hash content digestion (a string of hexadecimal digits)
+        """
         sha_hash = hashlib.md5()
         
         if not self.exists():
             raise ActionOnNonexistingDirectory(self.path)
 
         def hash_file(file_path):
-            print('Hashing file {}'.format(file_path))
-
             path_to_hash = os.path.relpath(file_path, self.path)
-            print('Updating with {}'.format(path_to_hash.encode()))
             sha_hash.update(path_to_hash.encode())
 
             with open(file_path, 'rb') as f:
                 for buf in iter(lambda: f.read(4096), b''):
-                    print('Updating with {}'.format(buf))
                     sha_hash.update(buf)
-
-            print('')
 
         def extract_ignore_lines(path):
             with open(os.path.join(path, self.HASH_IGNORE_FILE_NAME), 'r') as f:
@@ -138,15 +141,6 @@ class Directory(object):
                 return files
 
             patterns = extract_ignore_lines(root)
-            # print('patterns', patterns)
-
-            for file_name in files:
-                for pat in patterns:
-                    # print('filename={}, pat={}, match={}'.format(file_name, pat, fnmatch.fnmatch(file_name, pat)))
-                    pass
-                match = any(fnmatch.fnmatch(file_name, pat) for pat in patterns)
-                # print('file {} any match result is {}'.format(file_name, match))
-
             return [file_name for file_name in files if not any(fnmatch.fnmatch(file_name, pat) for pat in patterns)]
 
         for root, dirs, files in os.walk(self.path):
@@ -155,13 +149,9 @@ class Directory(object):
             files.sort()
 
             files_to_hash = extract_files_to_hash(root, files, ignore_unwanted_files)
-            print('files to hash:', files_to_hash)
 
             for file_name in files_to_hash:
-                # print('root:', root)
-                # print('file_name:',file_name)
                 hash_file(os.path.join(root, file_name))
-                print('')
 
         return sha_hash.hexdigest()
 
