@@ -192,7 +192,7 @@ class JsonFile(dict):
 
     def _update_file(self):
         with open(self.file_path, 'w') as f:
-            json.dump(self, f, indent=4)
+            json.dump(self, f, indent=4, sort_keys=True)
 
     def __setitem__(self, key, value):
         super(JsonFile, self).__setitem__(key, value)

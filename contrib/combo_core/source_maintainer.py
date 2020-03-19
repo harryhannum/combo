@@ -2,7 +2,11 @@ from .importer import *
 from .manifest import *
 
 
-class VersionAlreadyExists(ComboException):
+class RequestedVersionAlreadyExisted(ComboException):
+    pass
+
+
+class RequestedVersionMismatch(ComboException):
     pass
 
 
@@ -63,17 +67,29 @@ class IndexerSourceMaintainer(IndexerSourceLocator, SourceMaintainer):
             IndexerSourceHandler.IDENTIFIER_TYPE_KEYWORD, IndexerSourceHandler.DEFAULT_SRC_TYPE)
         assert source_type == 'version_dependent', 'Unsupported action'
 
-        # If the requested version already exists this is an error
-        if str(dep_details.version) in project_details:
-            raise VersionAlreadyExists('Version "{}" of project "{}" already exist in file "{}"'.format(
-                dep_details.version, dep_details.name, self.get_json_file_path()))
-
         # Remove details which are not necessary due to defaults
         project_defaults = project_details.get(VersionDependentSourceSupplier.SOURCE_DEFAULTS_KEYWORD)
-        if project_defaults is not None:
-            version_details = VersionDependentSourceSupplier.filter_version_details(version_details, project_defaults)
+        requested_version_details = VersionDependentSourceSupplier.filter_version_details(version_details, project_defaults)
 
-        project_details[str(dep_details.version)] = version_details
+        # Check if the requested version already exists in the server
+        existing_version_details = project_details.get(str(dep_details.version))
+
+        if existing_version_details:
+            existing_version_details = VersionDependentSourceSupplier.\
+                filter_version_details(existing_version_details, project_defaults)
+
+            # If the version exist with the same details its fine,
+            # but if a different details are requested it is an error
+            if requested_version_details == existing_version_details:
+                raise RequestedVersionAlreadyExisted(
+                    'Version "{}" of project "{}" already exists with the same details'.format(
+                        dep_details.version, dep_details.name))
+            else:
+                raise RequestedVersionMismatch(
+                    'Version "{}" of project "{}" already exist in file "{}" with details: "{}"'.format(
+                        dep_details.version, dep_details.name, self.get_json_file_path(), existing_version_details))
+
+        project_details[str(dep_details.version)] = requested_version_details
 
         # This update is necessary for the file update
         self._projects[dep_details.name] = project_details

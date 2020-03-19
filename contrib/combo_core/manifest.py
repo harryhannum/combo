@@ -31,6 +31,7 @@ class Manifest:
         """
         :param dir_path: The path to the combo manifest json file
         :param expected_combo_node: The expected combo node value of the current manifest
+                                    False in order not to validate (ignore value)
         """
 
         self.base_path = dir_path
