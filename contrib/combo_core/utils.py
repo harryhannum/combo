@@ -37,7 +37,7 @@ class Directory(object):
         return os.path.abspath(self.path)
 
     def join(self, *paths):
-        target_path = os.path.abspath(os.path.join(self.path, *paths))
+        target_path = os.path.join(self.path, *paths)
         return Directory(target_path)
 
     def sons(self):
@@ -49,6 +49,8 @@ class Directory(object):
         return Directory(os.path.dirname(self.path))
 
     def get_file(self, default_content=''):
+        assert not self.is_dir(), 'Requested to get directory {} as file'.format(self.path)
+
         if not self.exists():
             if default_content is None:
                 raise EnvironmentError('File {} does not exist'.format(self.path))
@@ -59,7 +61,6 @@ class Directory(object):
             with open(self.path, 'w') as f:
                 f.write(default_content)
 
-        assert not os.path.isdir(self.path), 'Requested to get directory {} as file'.format(self.path)
         return self.path
 
     def copy_to(self, dst, symlinks=False, ignore=None):
@@ -132,7 +133,13 @@ class Directory(object):
                     sha_hash.update(buf)
 
         def extract_ignore_lines(path):
-            with open(os.path.join(path, self.HASH_IGNORE_FILE_NAME), 'r') as f:
+            ignore_file = self.join(self.HASH_IGNORE_FILE_NAME)
+
+            if not ignore_file.exists():
+                return []
+
+            # Extract ignore patterns
+            with open(ignore_file.path, 'r') as f:
                 lines = f.read().splitlines()
             return lines
 

@@ -23,6 +23,10 @@ class VersionNumber:
     def __init__(self, tuple_or_str='1.0', prefix=default_prefix):
         try:
             if isinstance(tuple_or_str, string_types):
+                # Strip prefix if there is any
+                if prefix and tuple_or_str.startswith(prefix):
+                    tuple_or_str = tuple_or_str[len(prefix):]
+
                 self._prefix = prefix
                 self.version = Version(tuple_or_str)
             elif is_iterable(tuple_or_str):

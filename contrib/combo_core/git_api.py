@@ -4,7 +4,11 @@ import gc
 import os
 
 
-class ReferenceNotFound(ComboException):
+class GitReferenceNotFound(ComboException):
+    pass
+
+
+class GitCloneFailure(ComboException):
     pass
 
 
@@ -38,9 +42,11 @@ class GitRepo:
         if not self.local_path.exists():
             os.makedirs(self.local_path.path)
 
-        # TODO: Add timeout. Fix 'local_projects.json' file in case of timeout before exiting
-        self._repo = git.Repo.clone_from(remote_url, self.local_path.path)
-        self._loaded = True
+        try:
+            self._repo = git.Repo.clone_from(remote_url, self.local_path.path)
+            self._loaded = True
+        except BaseException as e:
+            raise GitCloneFailure('Failed to clone from git url: "{}"'.format(remote_url), e)
 
         if ref:
             self.checkout(ref)
@@ -64,7 +70,7 @@ class GitRepo:
         try:
             self._repo.head.reference = ref
         except ValueError as e:
-            raise ReferenceNotFound(self._git_dir, e)
+            raise GitReferenceNotFound(self._git_dir.path, str(ref), e)
 
         self._repo.head.reset(working_tree=True)
 

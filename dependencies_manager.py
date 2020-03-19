@@ -114,7 +114,7 @@ class DependenciesManager:
         # If the repository is not dirty, this means everything is up-to-date and there is nothing to do
         if not self.is_dirty(force=force):
             print('Project is already up-to-date')
-            return
+            return True
 
         self._initialize_tree()
         self._extern_from_tree()

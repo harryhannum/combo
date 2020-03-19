@@ -152,7 +152,7 @@ class Importer(object):
 
         # Add the clone to the cache only if a combo dependency was passed
         if isinstance(src, ComboDep):
-            print('Caching dependency {}'.format(src))
+            print('Adding dependency {} to the cached data'.format(src))
             self._cached_data.add(src)
 
         return clone_dir
