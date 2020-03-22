@@ -8,11 +8,15 @@ import json
 MAX_RESPONSE_LENGTH = 4096
 
 
-class ServerConnectionError(ComboException, connection_error):
+class ServerError(ComboException):
     pass
 
 
-class NackFromServer(ComboException):
+class ServerConnectionError(ServerError, connection_error):
+    pass
+
+
+class ServerInvalidRequest(ServerError):
     pass
 
 
@@ -24,35 +28,38 @@ class RemoteSourceLocator(SourceLocator):
     def _extended_url(self, *args):
         return '/'.join((self._url, ) + args)
 
-    def get_source(self, project_name, version):
-        req_url = self._extended_url('get_source')
-        params = {'project_name': project_name, 'project_version': str(version)}
+    def _send_get_request(self, url_extension, **params):
+        req_url = self._extended_url(url_extension)
 
         try:
             response = requests.get(req_url, params=params)
+            decoded_respone = response.content.decode()
         except BaseException as e:
             raise ServerConnectionError(
                 'Could not get response for request to "{}" with params "{}"'.format(req_url, params), e)
 
+        if decoded_respone.startswith('Error'):
+            raise ServerInvalidRequest(decoded_respone)
+
+        return decoded_respone
+
+    def get_source(self, project_name, version):
+        response = self._send_get_request('get_source', project_name=project_name, project_version=str(version))
+
         try:
-            source = json.loads(response.content.decode())
+            source = json.loads(response)
         except BaseException as e:
-            raise UndefinedProject('Server could not locate project "{}" version "{}"'.format(project_name, version), e)
+            raise ServerError('Requested source from server, could not parse response "{}"'.format(response), e)
 
         return source
 
     def all_sources(self):
-        req_url = self._extended_url('get_available_versions')
+        response = self._send_get_request('get_available_versions')
 
         try:
-            response = requests.get(req_url)
+            sources_dict = json.loads(response)
         except BaseException as e:
-            raise ServerConnectionError('Could not get response for request to "{}"'.format(req_url), e)
-
-        try:
-            sources_dict = json.loads(response.content.decode())
-        except BaseException as e:
-            raise ServerConnectionError('Server did not return a list of the available versions', e)
+            raise ServerError('Requested all sources from server, could not parse response "{}"'.format(response), e)
 
         return sources_dict
 
@@ -61,30 +68,35 @@ class RemoteSourceMaintainer(RemoteSourceLocator, SourceMaintainer):
     def __init__(self, address):
         super(RemoteSourceMaintainer, self).__init__(address)
 
-    def add_project(self, project_name, source_type=None):
-        req_url = self._extended_url('add_project')
+    def _send_post_request(self, url_extension, **data):
+        req_url = self._extended_url(url_extension)
 
+        try:
+            response = requests.post(req_url, data=data)
+            decoded_respone = response.content.decode()
+        except BaseException as e:
+            raise ServerConnectionError(
+                'Could not post the request "{}" with data "{}"'.format(req_url, data), e)
+
+        if decoded_respone.startswith('Error'):
+            raise ServerInvalidRequest(decoded_respone)
+
+        return decoded_respone
+
+    def add_project(self, project_name, source_type=None):
         data = {'project_name': project_name}
         if source_type:
             data['source_type'] = source_type
 
-        try:
-            response = requests.post(req_url, data=data)
-            print('Server response: {}'.format(response.content))
-        except BaseException as e:
-            raise ServerConnectionError('Could not post new project {}'.format(project_name), e)
+        response = self._send_post_request('add_project', **data)
+        print('Server response: {}'.format(response))
 
     def add_version(self, version_details, **kwargs):
         # kwargs is not relevant here, because it is not sent to the server anyway
 
-        req_url = self._extended_url('add_version')
-        data = {'version_details': json.dumps(version_details)}
-
-        try:
-            response = requests.post(req_url, data=data)
-            print('Server response: {}'.format(response.content))
-        except BaseException as e:
-            raise ServerConnectionError('Could not post version located at {}'.format(version_details), e)
+        version_details_dump = json.dumps(version_details)
+        response = self._send_post_request('add_version', version_details=version_details_dump)
+        print('Server response: {}'.format(response))
 
 
 class RemoteImporter(Importer):
