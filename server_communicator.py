@@ -44,7 +44,7 @@ class RemoteSourceLocator(SourceLocator):
         return decoded_respone
 
     def get_source(self, project_name, version):
-        response = self._send_get_request('get_source', project_name=project_name, project_version=str(version))
+        response = self._send_get_request('project/' + str(project_name) + "/" + str(version))
 
         try:
             source = json.loads(response)
@@ -69,10 +69,14 @@ class RemoteSourceMaintainer(RemoteSourceLocator, SourceMaintainer):
         super(RemoteSourceMaintainer, self).__init__(address)
 
     def _send_post_request(self, url_extension, **data):
+        headers = {
+          'Content-Type': 'application/json'
+        }
+
         req_url = self._extended_url(url_extension)
 
         try:
-            response = requests.post(req_url, data=data)
+            response = requests.post(req_url, data=json.dumps(data), headers=headers)
             decoded_respone = response.content.decode()
         except BaseException as e:
             raise ServerConnectionError(
@@ -84,18 +88,17 @@ class RemoteSourceMaintainer(RemoteSourceLocator, SourceMaintainer):
         return decoded_respone
 
     def add_project(self, project_name, source_type=None):
-        data = {'project_name': project_name}
         if source_type:
             data['source_type'] = source_type
 
-        response = self._send_post_request('add_project', **data)
+        response = self._send_post_request('project/' + project_name + "/", None)
         print('Server response: {}'.format(response))
 
     def add_version(self, version_details, **kwargs):
         # kwargs is not relevant here, because it is not sent to the server anyway
 
         version_details_dump = json.dumps(version_details)
-        response = self._send_post_request('add_version', version_details=version_details_dump)
+        response = self._send_post_request('project/', **version_details)
         print('Server response: {}'.format(response))
 
 
